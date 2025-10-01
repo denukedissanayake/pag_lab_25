@@ -9,7 +9,7 @@ class AnomalyRequest(BaseModel):
     endpoint: str
     httpMethod: str
     statusCode: int
-    responseTimeMs: float
+    responseTime: float
     authCompanyId: str
     schemaHash: str
 
