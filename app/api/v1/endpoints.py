@@ -1,41 +1,55 @@
 from fastapi import APIRouter, Body
 from typing import List
-from app.models.anomaly import ApiCall, AnomalyReport, DetectedAnomaly
-from app.services import anomaly_detector
+import logging
+from app.models.anomaly import AnomalyRequest, AnomalyReport, DetectedAnomaly
+from app.services import anomalyDetector
+
+# Get a logger for this module
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.post("/predict", response_model=AnomalyReport)
-async def predict_anomaly(api_call: ApiCall = Body(...)):
-    """
-    Analyzes an API call to detect anomalies using a hybrid approach.
-    """
-    detected_anomalies: List[DetectedAnomaly] = []
+async def predict_anomaly(anomalyRequest: AnomalyRequest = Body(...)):
+    logger.info(f"Received prediction request: {anomalyRequest.requestId} for endpoint {anomalyRequest.endpoint}")
     
-    reconstruction_error = anomaly_detector.get_autoencoder_reconstruction_error(api_call)
-    anomaly_score = reconstruction_error
+    detectedAnomalies: List[DetectedAnomaly] = []
     
-    if reconstruction_error > 0.8:
-        detected_anomalies.append(DetectedAnomaly(
+    reconstructionError = anomalyDetector.getAutoEncoderReconstructionError(anomalyRequest)
+    anomalyScore = reconstructionError
+    
+    if reconstructionError > 0.8:
+        anomaly = DetectedAnomaly(
             type="LATENCY_SPIKE_OR_NEW_SCHEMA",
-            reason=f"High reconstruction error ({reconstruction_error:.2f}) from model. Response time: {api_call.response_time_ms}ms."
-        ))
+            reason=f"High reconstruction error ({reconstructionError:.2f}) from model. Response time: {anomalyRequest.responseTimeMs}ms."
+        )
+        detectedAnomalies.append(anomaly)
+        logger.warning(f"Anomaly detected: {anomaly.type} for request {anomalyRequest.requestId}")
 
-    rate_anomaly = anomaly_detector.check_increased_request_rate(api_call)
-    if rate_anomaly:
-        detected_anomalies.append(rate_anomaly)
-        anomaly_score = max(anomaly_score, 0.9)
+    rateAnomaly = anomalyDetector.checkSuddenSpikesInRequests(anomalyRequest)
+    if rateAnomaly:
+        detectedAnomalies.append(rateAnomaly)
+        anomalyScore = max(anomalyScore, 0.9)
+        logger.warning(f"Anomaly detected: {rateAnomaly.type} for request {anomalyRequest.requestId}")
 
-    repetitive_anomaly = anomaly_detector.check_repetitive_requests(api_call)
-    if repetitive_anomaly:
-        detected_anomalies.append(repetitive_anomaly)
-        anomaly_score = max(anomaly_score, 0.95)
+    repetitiveAnomaly = anomalyDetector.checkRepetitiveRequestsByUsers(anomalyRequest)
+    if repetitiveAnomaly:
+        detectedAnomalies.append(repetitiveAnomaly)
+        anomalyScore = max(anomalyScore, 0.95)
+        logger.warning(f"Anomaly detected: {repetitiveAnomaly.type} for request {anomalyRequest.requestId}")
 
-    is_anomaly = len(detected_anomalies) > 0
-    
-    return AnomalyReport(
-        request_id=api_call.request_id,
-        is_anomaly=is_anomaly,
-        anomaly_score=min(1.0, anomaly_score),
-        detected_anomalies=detected_anomalies
+    isAnomaly = len(detectedAnomalies) > 0
+
+    finalReport = AnomalyReport(
+        requestId=anomalyRequest.requestId,
+        isAnomaly=isAnomaly,
+        anomalyScore=min(1.0, anomalyScore),
+        detectedAnomalies=detectedAnomalies
     )
+
+    if finalReport.isAnomaly:
+        logger.info(f"Final report for {anomalyRequest.requestId}: ANOMALY DETECTED with score {finalReport.anomalyScore:.2f}")
+    else:
+        logger.info(f"Final report for {anomalyRequest.requestId}: No anomaly detected.")
+        
+    return finalReport

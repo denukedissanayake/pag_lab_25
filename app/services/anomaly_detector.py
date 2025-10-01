@@ -1,35 +1,38 @@
 from typing import Optional, List
-from app.models.anomaly import ApiCall, DetectedAnomaly
-from app.core.redis_client import redis_client
+from app.models.anomaly import AnomalyRequest, DetectedAnomaly
+from app.core.redis_client import redisClient
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Placeholder for a pre-trained Autoencoder model
-def get_autoencoder_reconstruction_error(api_call: ApiCall) -> float:
+def getAutoEncoderReconstructionError(api_call: AnomalyRequest) -> float:
     """
     Simulates an Autoencoder model by checking for high response times.
     """
-    if api_call.response_time_ms > 50.0:
-        return 0.9 + (api_call.response_time_ms - 50.0) / 100.0
+    if api_call.responseTimeMs > 50.0:
+        return 0.9 + (api_call.responseTimeMs - 50.0) / 100.0
     
     schema_key = f"schema_hashes:{api_call.endpoint}"
-    if not redis_client.sismember(schema_key, api_call.schema_hash):
-        redis_client.sadd(schema_key, api_call.schema_hash)
+    if not redisClient.sismember(schema_key, api_call.schemaHash):
+        redisClient.sadd(schema_key, api_call.schemaHash)
         return 0.85
         
     return 0.1
 
-def check_increased_request_rate(api_call: ApiCall) -> Optional[DetectedAnomaly]:
+def check_increased_request_rate(api_call: AnomalyRequest) -> Optional[DetectedAnomaly]:
     """
     Checks for spikes in request rates per endpoint using Redis counters with TTL.
     """
     time_window = 60
-    current_minute = api_call.timestamp_utc.strftime("%Y-%m-%dT%H:%M")
+    current_minute = api_call.timestamp.strftime("%Y-%m-%dT%H:%M")
     
     rate_key = f"rate:{api_call.endpoint}:{current_minute}"
     
-    current_rate = redis_client.incr(rate_key)
+    current_rate = redisClient.incr(rate_key)
     
     if current_rate == 1:
-        redis_client.expire(rate_key, time_window)
+        redisClient.expire(rate_key, time_window)
         
     rate_threshold = 100
     
@@ -40,27 +43,29 @@ def check_increased_request_rate(api_call: ApiCall) -> Optional[DetectedAnomaly]
         )
     return None
 
-def check_repetitive_requests(api_call: ApiCall) -> Optional[DetectedAnomaly]:
+def check_repetitive_requests(api_call: AnomalyRequest) -> Optional[DetectedAnomaly]:
     """
     Detects rapid, repetitive requests from a single client to a single endpoint.
     """
     time_window_seconds = 30
-    request_count_threshold = 20
+    request_count_threshold = 2
     
-    key = f"repetitive:{api_call.client_ip}:{api_call.endpoint}"
-    now_timestamp = api_call.timestamp_utc.timestamp()
+    key = f"repetitive:{api_call.authCompanyId}:{api_call.endpoint}"
+    now_timestamp = api_call.timestamp.timestamp()
     
-    redis_client.zadd(key, {str(now_timestamp): now_timestamp})
+    redisClient.zadd(key, {f"{now_timestamp}:{api_call.requestId}": now_timestamp})
     
-    redis_client.zremrangebyscore(key, '-inf', now_timestamp - time_window_seconds)
+    redisClient.zremrangebyscore(key, '-inf', now_timestamp - time_window_seconds)
     
-    recent_requests_count = redis_client.zcard(key)
+    recent_requests_count = redisClient.zcard(key)
     
-    redis_client.expire(key, time_window_seconds + 5)
+    redisClient.expire(key, time_window_seconds + 5)
+
+    logger.info(f"Repetitive check: {recent_requests_count} requests from {api_call.authCompanyId} to {api_call.endpoint} in the last {time_window_seconds} seconds.")
     
     if recent_requests_count > request_count_threshold:
         return DetectedAnomaly(
             type="REPETITIVE_REQUEST",
-            reason=f"Client IP {api_call.client_ip} made {recent_requests_count} requests to {api_call.endpoint} in the last {time_window_seconds} seconds."
+            reason=f"Client IP {api_call.authCompanyId} made {recent_requests_count} requests to {api_call.endpoint} in the last {time_window_seconds} seconds."
         )
     return None

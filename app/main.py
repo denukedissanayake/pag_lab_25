@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from app.api.v1 import endpoints
+from app.core.config import setup_logging
+
+# Apply the logging configuration
+setup_logging()
 
 app = FastAPI(
     title="Anomaly Detection Service",

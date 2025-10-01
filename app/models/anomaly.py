@@ -1,23 +1,24 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import datetime
 from typing import List
+import uuid
 
-class ApiCall(BaseModel):
-    request_id: str
-    timestamp_utc: datetime.datetime
+class AnomalyRequest(BaseModel):
+    requestId: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: datetime.datetime
     endpoint: str
-    http_method: str
-    status_code: int
-    response_time_ms: float
-    client_ip: str
-    schema_hash: str
+    httpMethod: str
+    statusCode: int
+    responseTimeMs: float
+    authCompanyId: str
+    schemaHash: str
 
 class DetectedAnomaly(BaseModel):
     type: str
     reason: str
 
 class AnomalyReport(BaseModel):
-    request_id: str
-    is_anomaly: bool
-    anomaly_score: float
-    detected_anomalies: List[DetectedAnomaly] = []
+    requestId: str
+    isAnomaly: bool
+    anomalyScore: float
+    detectedAnomalies: List[DetectedAnomaly] = []
