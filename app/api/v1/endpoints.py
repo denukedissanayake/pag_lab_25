@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.get("/hello")
+async def get_hello():
+    return {"message": "hello"}
+
 @router.post("/predict", response_model=AnomalyReport)
 async def predict_anomaly(anomalyRequest: AnomalyRequest = Body(...)):
     logger.info(f"Received prediction request: {anomalyRequest.requestId} for endpoint {anomalyRequest.endpoint}")
