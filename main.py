@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from app.api.v1 import endpoints
-from app.core.config import setup_logging
+from app.config.logs import setup_logging
+import uvicorn
 
-# Apply the logging configuration
 setup_logging()
 
 app = FastAPI(
@@ -12,3 +12,6 @@ app = FastAPI(
 )
 
 app.include_router(endpoints.router, prefix="/api/v1")
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

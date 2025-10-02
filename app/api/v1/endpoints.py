@@ -1,13 +1,33 @@
+from app.services.anomalyDetectorManager import AnomalyDetectorManager, LogRequest
 from fastapi import APIRouter, Body
 from typing import List
 import logging
-from app.models.anomaly import AnomalyRequest, AnomalyReport, DetectedAnomaly
+from app.schemas.anomaly import AnomalyRequest, AnomalyReport, DetectedAnomaly
 from app.services import anomalyDetector
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
+# Instantiate the manager ONCE at startup
+model_manager = AnomalyDetectorManager()
+
 router = APIRouter()
+
+
+@router.post("/analyze")
+def analyze_log(request: LogRequest):
+    """
+    Analyzes a single log entry for anomalies and adapts the model if necessary.
+    """
+    result = model_manager.handle_incoming_log(request.log_text)
+    return result
+
+@router.get("/")
+def read_root():
+    return {"message": "Welcome to the Adaptive Anomaly Detection API"}
+
+
+
 
 @router.post("/predict", response_model=AnomalyReport)
 async def predict_anomaly(anomalyRequest: AnomalyRequest = Body(...)):

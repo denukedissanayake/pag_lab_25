@@ -1,6 +1,6 @@
 from typing import Optional, List
-from app.models.anomaly import AnomalyRequest, DetectedAnomaly
-from app.core.redisClient import redisClient
+from app.schemas.anomaly import AnomalyRequest, DetectedAnomaly
+from app.config.redis import redisClient
 import logging
 
 logger = logging.getLogger(__name__)
