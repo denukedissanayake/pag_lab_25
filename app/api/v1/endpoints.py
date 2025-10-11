@@ -26,9 +26,6 @@ def analyze_log(request: LogRequest):
 def read_root():
     return {"message": "Welcome to the Adaptive Anomaly Detection API"}
 
-
-
-
 @router.post("/predict", response_model=AnomalyReport)
 async def predict_anomaly(anomalyRequest: AnomalyRequest = Body(...)):
     logger.info(f"Received prediction request: {anomalyRequest.requestId} for endpoint {anomalyRequest.endpoint}")
